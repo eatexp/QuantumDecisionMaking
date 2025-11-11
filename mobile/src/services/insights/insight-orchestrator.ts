@@ -1,10 +1,9 @@
-import { Database } from '@nozbe/watermelondb';
+import { Database, Q } from '@nozbe/watermelondb';
 import { Outcome } from '@models/Outcome';
 import { Insight } from '@models/Insight';
 import { CorrelationDiscoveryEngine } from './correlation-discovery';
-// import { BiasDetectionEngine } from './bias-detection';
-// import { AccuracyTrackingEngine } from './accuracy-tracking';
-// (These will be implemented similarly)
+import { BiasDetectionEngine } from './bias-detection';
+import { AccuracyTrackingEngine } from './accuracy-tracking';
 
 /**
  * Insight Orchestrator
@@ -32,13 +31,13 @@ import { CorrelationDiscoveryEngine } from './correlation-discovery';
 
 export class InsightOrchestrator {
   private correlationEngine: CorrelationDiscoveryEngine;
-  // private biasEngine: BiasDetectionEngine;
-  // private accuracyEngine: AccuracyTrackingEngine;
+  private biasEngine: BiasDetectionEngine;
+  private accuracyEngine: AccuracyTrackingEngine;
 
   constructor(private database: Database) {
     this.correlationEngine = new CorrelationDiscoveryEngine(database);
-    // this.biasEngine = new BiasDetectionEngine(database);
-    // this.accuracyEngine = new AccuracyTrackingEngine(database);
+    this.biasEngine = new BiasDetectionEngine(database);
+    this.accuracyEngine = new AccuracyTrackingEngine(database);
   }
 
   /**
@@ -59,30 +58,29 @@ export class InsightOrchestrator {
     console.log('[Insights] Generating insights after outcome log...');
 
     try {
-      // Run all insight engines in parallel (Phase 1: Only correlation engine implemented)
-      const [correlationInsights /* , biasInsights, accuracyInsight */] = await Promise.all([
+      // Run all insight engines in parallel
+      const [correlationInsights, biasInsights, accuracyInsights] = await Promise.all([
         this.correlationEngine.discoverCorrelations().catch(err => {
           console.error('[Insights] Correlation engine failed:', err);
           return [];
         }),
 
-        // Phase 1.5: Uncomment these as they're implemented
-        // this.biasEngine.detectBiases().catch(err => {
-        //   console.error('[Insights] Bias engine failed:', err);
-        //   return [];
-        // }),
+        this.biasEngine.detectBiases().catch(err => {
+          console.error('[Insights] Bias engine failed:', err);
+          return [];
+        }),
 
-        // this.accuracyEngine.computeAccuracyInsight().catch(err => {
-        //   console.error('[Insights] Accuracy engine failed:', err);
-        //   return null;
-        // }),
+        this.accuracyEngine.generateAccuracyInsights().catch(err => {
+          console.error('[Insights] Accuracy engine failed:', err);
+          return [];
+        }),
       ]);
 
       // Combine all insights
       const allInsights: Insight[] = [
         ...correlationInsights,
-        // ...(biasInsights || []),
-        // ...(accuracyInsight ? [accuracyInsight] : []),
+        ...biasInsights,
+        ...accuracyInsights,
       ];
 
       // Performance check (CRITICAL)
@@ -159,18 +157,16 @@ export class InsightOrchestrator {
     return await this.database.write(async () => {
       return await this.database.collections.get<Insight>('insights').create(i => {
         i.insightType = 'achievement';
-        i.category = 'general';
         i.title = title;
         i.description = description;
-        i.dataPayload = JSON.stringify({
-          totalOutcomes,
-          trigger: 'fallback',
-        });
+        i.metadata = {
+          total_count: totalOutcomes,
+          decision_ids: [decision.id],
+        };
         i.isRead = false;
-        i.isArchived = false;
+        i.isActionable = false;
         i.priority = 5; // Medium priority for fallback insights
         i.generatedAt = new Date();
-        i.relatedDecisionIds = JSON.stringify([decision.id]);
       });
     });
   }
@@ -191,8 +187,8 @@ export class InsightOrchestrator {
       .get<Insight>('insights')
       .query(
         Q.where('is_read', false),
-        Q.where('is_archived', false),
-        Q.sortBy('priority', Q.desc),
+        Q.where('dismissed_at', null),
+        Q.sortBy('priority', Q.asc), // Lower number = higher priority
         Q.sortBy('generated_at', Q.desc)
       )
       .fetch();
@@ -215,18 +211,14 @@ export class InsightOrchestrator {
   }
 
   /**
-   * Archive insight (hide from feed)
+   * Dismiss insight (hide from feed)
    */
-  async archiveInsight(insightId: string): Promise<void> {
+  async dismissInsight(insightId: string): Promise<void> {
     const insight = await this.database.collections.get<Insight>('insights').find(insightId);
 
-    await this.database.write(async () => {
-      await insight.update(i => {
-        i.isArchived = true;
-      });
-    });
+    await insight.dismiss();
 
-    console.log(`[Insights] Archived: ${insight.title}`);
+    console.log(`[Insights] Dismissed: ${insight.title}`);
   }
 
   /**
@@ -235,17 +227,13 @@ export class InsightOrchestrator {
   async getInsightsForDecision(decisionId: string): Promise<Insight[]> {
     const allInsights = await this.database.collections
       .get<Insight>('insights')
-      .query(Q.where('is_archived', false), Q.sortBy('generated_at', Q.desc))
+      .query(Q.where('dismissed_at', null), Q.sortBy('generated_at', Q.desc))
       .fetch();
 
-    // Filter by related_decision_ids (stored as JSON array)
+    // Filter by decision_ids in metadata
     return allInsights.filter(insight => {
-      try {
-        const relatedIds = JSON.parse(insight.relatedDecisionIds || '[]');
-        return relatedIds.includes(decisionId);
-      } catch {
-        return false;
-      }
+      const decisionIds = insight.metadata.decision_ids || [];
+      return decisionIds.includes(decisionId);
     });
   }
 }
