@@ -1,0 +1,51 @@
+# Cloudflare Worker Configuration
+# Quantum Decision Lab - LLM Gateway
+
+name = "quantum-decisions-llm-gateway"
+main = "src/llm-gateway.ts"
+compatibility_date = "2024-01-01"
+workers_dev = true
+
+# Account ID (set via wrangler login or environment variable)
+# account_id = "your_account_id_here"
+
+# KV Namespace for rate limiting and caching
+# Create with: wrangler kv:namespace create "LLM_CACHE"
+[[kv_namespaces]]
+binding = "KV"
+id = "your_kv_namespace_id_here"
+preview_id = "your_preview_kv_namespace_id_here"
+
+# Environment Variables (secrets)
+# Set with: wrangler secret put ANTHROPIC_API_KEY
+# Set with: wrangler secret put DAILY_BUDGET_USD
+#
+# Alternatively, create .dev.vars file (not committed to git):
+# ANTHROPIC_API_KEY="sk-ant-..."
+# DAILY_BUDGET_USD="10.00"
+
+# Production environment
+[env.production]
+name = "quantum-decisions-llm-gateway-prod"
+routes = [
+  { pattern = "api.quantumdecisions.com/parse-decision", zone_name = "quantumdecisions.com" }
+]
+
+[[env.production.kv_namespaces]]
+binding = "KV"
+id = "production_kv_namespace_id_here"
+
+# Development environment
+[env.development]
+name = "quantum-decisions-llm-gateway-dev"
+
+[[env.development.kv_namespaces]]
+binding = "KV"
+id = "dev_kv_namespace_id_here"
+
+# Build configuration
+[build]
+command = "npm run build"
+
+[build.upload]
+format = "service-worker"

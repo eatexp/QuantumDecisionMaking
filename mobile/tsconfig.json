@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "lib": ["ES2020"],
+    "jsx": "react-native",
+    "strict": true,
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "baseUrl": "./src",
+    "paths": {
+      "@database/*": ["database/*"],
+      "@models/*": ["database/models/*"],
+      "@services/*": ["services/*"],
+      "@screens/*": ["screens/*"],
+      "@components/*": ["components/*"],
+      "@utils/*": ["utils/*"],
+      "@navigation/*": ["navigation/*"],
+      "@hooks/*": ["hooks/*"],
+      "@types/*": ["types/*"]
+    },
+    "types": ["jest", "@testing-library/jest-native"],
+    "experimentalDecorators": true,
+    "forceConsistentCasingInFileNames": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "babel.config.js", "metro.config.js", "jest.config.js"]
+}
