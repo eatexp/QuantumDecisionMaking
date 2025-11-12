@@ -50,3 +50,16 @@ export type {
 export type {
   AccuracyMetrics,
 } from './insights/accuracy-tracking';
+
+// LLM Services
+export {
+  LLMService,
+  DecisionParser,
+} from './llm';
+
+export type {
+  ParsedDecision,
+  ParseDecisionResponse,
+  LLMError,
+  CreateDecisionResult,
+} from './llm';
